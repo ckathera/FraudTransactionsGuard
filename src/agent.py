@@ -244,12 +244,15 @@ Format as:
 **Immediate Actions Required:** [2-3 bullets]
 **Case Reference:** [generate a fake reference number]
 
-Keep it under 200 words. Professional tone.
+Keep it under 200 words. Professional tone. /no_think
 """
     response = llm.invoke(prompt)
+    # Strip any residual <think>...</think> blocks just in case
+    import re
+    report = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
     return {
-        "final_report": response.content,
-        "messages": [{"role": "assistant", "content": response.content}],
+        "final_report": report,
+        "messages": [{"role": "assistant", "content": report}],
     }
 
 

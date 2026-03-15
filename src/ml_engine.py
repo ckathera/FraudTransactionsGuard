@@ -9,7 +9,6 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, roc_auc_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import IsolationForest
@@ -17,12 +16,13 @@ from imblearn.over_sampling import SMOTE
 import xgboost as xgb
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-MODEL_PATH = os.path.join(DATA_DIR, "fraud_model.joblib")
-ISO_PATH = os.path.join(DATA_DIR, "isolation_forest.joblib")
+BASE_DIR     = os.path.dirname(os.path.dirname(__file__))
+DATA_DIR     = os.path.join(BASE_DIR, "data")
+MODEL_PATH   = os.path.join(DATA_DIR, "fraud_model.joblib")
+ISO_PATH     = os.path.join(DATA_DIR, "isolation_forest.joblib")
 ENCODER_PATH = os.path.join(DATA_DIR, "encoders.joblib")
-DATA_PATH = os.path.join(DATA_DIR, "transactions.csv")
+TRAIN_PATH   = os.path.join(DATA_DIR, "transactions_train.csv")
+TEST_PATH    = os.path.join(DATA_DIR, "transactions_test.csv")
 
 # ── Feature config ─────────────────────────────────────────────────────────────
 CATEGORICAL = ["merchant_category"]
@@ -46,17 +46,16 @@ def _encode(df: pd.DataFrame, le: LabelEncoder | None = None):
     return df, le
 
 
-def train(data_path: str = DATA_PATH) -> dict:
-    """Train XGBoost + RandomForest, pick best by F1. Save model."""
-    df = pd.read_csv(data_path)
-    df, le = _encode(df)
+def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
+    """Train XGBoost + RandomForest on fraudTrain, evaluate on fraudTest. Save model."""
+    df_train = pd.read_csv(train_path)
+    df_test  = pd.read_csv(test_path)
 
-    X = df[FEATURES]
-    y = df[TARGET]
+    df_train, le = _encode(df_train)
+    df_test,  _  = _encode(df_test, le)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
+    X_train, y_train = df_train[FEATURES], df_train[TARGET]
+    X_test,  y_test  = df_test[FEATURES],  df_test[TARGET]
 
     # SMOTE to handle imbalance in training set
     smote = SMOTE(random_state=42)

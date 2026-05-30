@@ -11,6 +11,7 @@ import sys
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import joblib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
@@ -25,9 +26,44 @@ st.set_page_config(
 # ── CSS ────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-.decision-block  { background:#fde8e8; border-left:6px solid #e53e3e; padding:16px; border-radius:8px; }
-.decision-flag   { background:#fef3cd; border-left:6px solid #d69e2e; padding:16px; border-radius:8px; }
-.decision-approve{ background:#e8f5e9; border-left:6px solid #38a169; padding:16px; border-radius:8px; }
+.decision-block,
+.decision-flag,
+.decision-approve {
+    padding:16px;
+    border-radius:8px;
+    box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+.decision-block  { background:#fff1f2; border-left:6px solid #e11d48; color:#4c0519; }
+.decision-flag   { background:#fffbeb; border-left:6px solid #f59e0b; color:#451a03; }
+.decision-approve{ background:#ecfdf5; border-left:6px solid #10b981; color:#052e16; }
+.decision-block h2,
+.decision-flag h2,
+.decision-approve h2 {
+    color:inherit;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:0 0 10px 0;
+    font-weight:800;
+}
+.decision-block p,
+.decision-flag p,
+.decision-approve p {
+    color:inherit;
+    margin:0;
+    font-weight:600;
+    opacity:.84;
+}
+.decision-dot {
+    width:18px;
+    height:18px;
+    border-radius:999px;
+    display:inline-block;
+    flex:0 0 auto;
+}
+.decision-block .decision-dot { background:#e11d48; }
+.decision-flag .decision-dot { background:#f59e0b; }
+.decision-approve .decision-dot { background:#10b981; }
 .metric-card { background:#f7fafc; border-radius:10px; padding:12px; text-align:center; }
 h1 { color: #1a202c; }
 </style>
@@ -52,7 +88,16 @@ with st.sidebar:
     st.divider()
     st.markdown("### Tech Stack")
     st.markdown("🤖 `qwen3-32b` via Groq")
-    st.markdown("🌲 XGBoost + Isolation Forest")
+    # Show which model was selected at training time (if available)
+    try:
+        encoders_path = os.path.join(os.path.dirname(__file__), "data", "encoders.joblib")
+        enc = joblib.load(encoders_path)
+        sel = enc.get("selected_model_name", "XGBoost")
+        best = enc.get("best_model_name", sel)
+        st.markdown(f"🌲 ML Models: XGBoost · RandomForest (benchmarked) — Selected: **{sel}**")
+        st.markdown(f"🔎 Benchmark winner: **{best}**")
+    except Exception:
+        st.markdown("🌲 XGBoost + Isolation Forest")
     st.markdown("📚 FAISS + sentence-transformers")
     st.markdown("🔧 FastMCP (5 tools)")
     st.markdown("🕸️ LangGraph StateGraph")
@@ -143,7 +188,7 @@ if "selected_txn" in st.session_state and data_loaded:
         agent = get_agent()
 
         st.write("📦 Node 1 — Transaction Loader")
-        st.write("🧠 Node 2 — Fraud Scorer (XGBoost + Isolation Forest)")
+        st.write(f"🧠 Node 2 — Fraud Scorer ({sel if 'sel' in locals() else 'XGBoost'} + Isolation Forest)")
 
         try:
             result = agent.invoke({"transaction_id": txn_id})
@@ -187,11 +232,11 @@ if "selected_txn" in st.session_state and data_loaded:
     with r2:
         st.markdown("#### Decision")
         if decision == "BLOCK":
-            st.markdown('<div class="decision-block"><h2>🔴 BLOCK</h2><p>Transaction blocked. Card frozen pending verification.</p></div>', unsafe_allow_html=True)
+            st.markdown('<div class="decision-block"><h2><span class="decision-dot"></span>BLOCK</h2><p>Transaction blocked. Card frozen pending verification.</p></div>', unsafe_allow_html=True)
         elif decision == "FLAG":
-            st.markdown('<div class="decision-flag"><h2>🟡 FLAG</h2><p>Flagged for manual review. Customer notification sent.</p></div>', unsafe_allow_html=True)
+            st.markdown('<div class="decision-flag"><h2><span class="decision-dot"></span>FLAG</h2><p>Flagged for manual review. Customer notification sent.</p></div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="decision-approve"><h2>🟢 APPROVE</h2><p>Transaction approved. Logged for pattern analysis.</p></div>', unsafe_allow_html=True)
+            st.markdown('<div class="decision-approve"><h2><span class="decision-dot"></span>APPROVE</h2><p>Transaction approved. Logged for pattern analysis.</p></div>', unsafe_allow_html=True)
 
         st.metric("Anomaly Score", f"{score.get('anomaly_score', 0):.3f}", help="0=normal, 1=highly anomalous")
         st.metric("Risk Level", risk)

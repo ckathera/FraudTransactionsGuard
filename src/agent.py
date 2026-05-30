@@ -60,7 +60,11 @@ class FraudAgentState(TypedDict):
 
 # ── Node 1: Transaction Loader ─────────────────────────────────────────────────
 def transaction_loader(state: FraudAgentState) -> dict:
-    """Fetch full transaction details via MCP tool."""
+    """Fetch full transaction details via MCP tool.
+
+    Importance: provides the factual transaction data that every later scoring,
+    investigation, and decision step depends on.
+    """
     raw = get_transaction_details(state["transaction_id"])
     tx_data = json.loads(raw)
     return {
@@ -71,7 +75,11 @@ def transaction_loader(state: FraudAgentState) -> dict:
 
 # ── Node 2: Fraud Scorer ───────────────────────────────────────────────────────
 def fraud_scorer(state: FraudAgentState) -> dict:
-    """Run XGBoost + Isolation Forest scoring via MCP tool."""
+    """Run XGBoost + Isolation Forest scoring via MCP tool.
+
+    Importance: estimates transaction risk and sets the investigation path
+    (HIGH/MEDIUM risk receives a deeper investigation; LOW risk may take a fast path).
+    """
     raw = score_fraud(state["transaction_id"])
     score = json.loads(raw)
 
@@ -99,7 +107,11 @@ def fraud_scorer(state: FraudAgentState) -> dict:
 
 # ── Node 3: Account Investigator ──────────────────────────────────────────────
 def account_investigator(state: FraudAgentState) -> dict:
-    """Fetch account history and velocity data via MCP tools."""
+    """Fetch account history and velocity data via MCP tools.
+
+    Importance: reveals account-level behavior and velocity signals that help
+    distinguish true fraud from one-off anomalies.
+    """
     account_id = state["transaction_data"].get("account_id", "")
     history_raw = get_account_history(account_id, limit=10)
     velocity_raw = check_velocity(account_id)
@@ -128,7 +140,11 @@ def account_investigator(state: FraudAgentState) -> dict:
 
 # ── Node 4: Pattern Analyzer (RAG) ────────────────────────────────────────────
 def pattern_analyzer(state: FraudAgentState) -> dict:
-    """Retrieve relevant fraud patterns and compliance rules from vector store."""
+    """Retrieve relevant fraud patterns and compliance rules from vector store.
+
+    Importance: grounds the decision-maker in explicit domain evidence and
+    compliance guidance instead of relying only on raw model scores.
+    """
     tx = state["transaction_data"]
     score = state["fraud_score"]
     risk = state["risk_level"]
@@ -150,7 +166,11 @@ def pattern_analyzer(state: FraudAgentState) -> dict:
 
 # ── Node 5: Decision Maker ────────────────────────────────────────────────────
 def decision_maker(state: FraudAgentState) -> dict:
-    """LLM makes BLOCK / FLAG / APPROVE decision based on all gathered evidence."""
+    """LLM makes BLOCK / FLAG / APPROVE decision based on all gathered evidence.
+
+    Importance: synthesizes model scores, account investigation, and policy
+    context into a final, explainable recommendation.
+    """
     tx = state["transaction_data"]
     score = state["fraud_score"]
 
@@ -218,7 +238,11 @@ Be concise and decisive. Use the decision matrix from the investigation playbook
 
 # ── Node 6: Alert Writer ──────────────────────────────────────────────────────
 def alert_writer(state: FraudAgentState) -> dict:
-    """Format final structured fraud alert report."""
+    """Format final structured fraud alert report.
+
+    Importance: turns the agent decision into a human-ready alert with clear
+    rationale and recommended next actions for fraud operations.
+    """
     tx = state["transaction_data"]
     score = state["fraud_score"]
     decision = state["decision"]

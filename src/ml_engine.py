@@ -1,38 +1,44 @@
 """
-ML Engine — Bank Transaction Fraud Detection
-Models: XGBoost (primary) vs RandomForest (baseline)
+ML Engine - Bank Transaction Fraud Detection
+Models: XGBoost (primary) vs RandomForest (baseline comparison)
 Handles class imbalance via SMOTE + scale_pos_weight
 """
-import os
-import json
 import joblib
+import os
+
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import f1_score, roc_auc_score, classification_report
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import IsolationForest
-from imblearn.over_sampling import SMOTE
 import xgboost as xgb
+from imblearn.over_sampling import SMOTE
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
+from sklearn.metrics import classification_report, f1_score, roc_auc_score
+from sklearn.preprocessing import LabelEncoder
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR     = os.path.dirname(os.path.dirname(__file__))
-DATA_DIR     = os.path.join(BASE_DIR, "data")
-MODEL_PATH   = os.path.join(DATA_DIR, "fraud_model.joblib")
-ISO_PATH     = os.path.join(DATA_DIR, "isolation_forest.joblib")
+# Paths
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+MODEL_PATH = os.path.join(DATA_DIR, "fraud_model.joblib")
+ISO_PATH = os.path.join(DATA_DIR, "isolation_forest.joblib")
 ENCODER_PATH = os.path.join(DATA_DIR, "encoders.joblib")
-TRAIN_PATH   = os.path.join(DATA_DIR, "transactions_train.csv")
-TEST_PATH    = os.path.join(DATA_DIR, "transactions_test.csv")
+TRAIN_PATH = os.path.join(DATA_DIR, "transactions_train.csv")
+TEST_PATH = os.path.join(DATA_DIR, "transactions_test.csv")
 
-# ── Feature config ─────────────────────────────────────────────────────────────
+# Feature config
 CATEGORICAL = ["merchant_category"]
 NUMERIC = [
-    "amount", "hour", "day_of_week", "is_online",
-    "distance_from_home_km", "num_transactions_24h",
-    "account_age_days", "avg_amount_30d", "amount_vs_avg_ratio",
+    "amount",
+    "hour",
+    "day_of_week",
+    "is_online",
+    "distance_from_home_km",
+    "num_transactions_24h",
+    "account_age_days",
+    "avg_amount_30d",
+    "amount_vs_avg_ratio",
 ]
 FEATURES = NUMERIC + ["merchant_category_encoded"]
 TARGET = "fraud"
+PRIMARY_MODEL_NAME = "XGBoost"
 
 
 def _encode(df: pd.DataFrame, le: LabelEncoder | None = None):
@@ -47,21 +53,19 @@ def _encode(df: pd.DataFrame, le: LabelEncoder | None = None):
 
 
 def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
-    """Train XGBoost + RandomForest on fraudTrain, evaluate on fraudTest. Save model."""
+    """Train benchmark models, report metrics, and save XGBoost as the primary model."""
     df_train = pd.read_csv(train_path)
-    df_test  = pd.read_csv(test_path)
+    df_test = pd.read_csv(test_path)
 
     df_train, le = _encode(df_train)
-    df_test,  _  = _encode(df_test, le)
+    df_test, _ = _encode(df_test, le)
 
     X_train, y_train = df_train[FEATURES], df_train[TARGET]
-    X_test,  y_test  = df_test[FEATURES],  df_test[TARGET]
+    X_test, y_test = df_test[FEATURES], df_test[TARGET]
 
-    # SMOTE to handle imbalance in training set
     smote = SMOTE(random_state=42)
     X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
 
-    # Class imbalance ratio for XGBoost
     neg = (y_train == 0).sum()
     pos = (y_train == 1).sum()
     scale = neg / pos
@@ -84,10 +88,12 @@ def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
     }
 
     results = {}
-    best_model, best_name, best_f1 = None, "", 0.0
+    trained_models = {}
+    best_name, best_f1 = "", 0.0
 
     for name, model in models.items():
         model.fit(X_train_res, y_train_res)
+        trained_models[name] = model
         preds = model.predict(X_test)
         probs = model.predict_proba(X_test)[:, 1]
         f1 = f1_score(y_test, preds)
@@ -95,22 +101,42 @@ def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
         results[name] = {"f1": round(f1, 4), "roc_auc": round(auc, 4)}
         print(f"{name}: F1={f1:.4f}  ROC-AUC={auc:.4f}")
         if f1 > best_f1:
-            best_f1, best_model, best_name = f1, model, name
+            best_f1, best_name = f1, name
 
-    print(f"\nBest model: {best_name}  (F1={best_f1:.4f})")
-    print(classification_report(y_test, best_model.predict(X_test), target_names=["Legit", "Fraud"]))
+    # Choose the actual best model found by benchmarking (fall back to PRIMARY_MODEL_NAME)
+    selected_name = best_name if best_name else PRIMARY_MODEL_NAME
+    selected_model = trained_models[selected_name]
+    print(f"\nBenchmark winner: {best_name}  (F1={best_f1:.4f})")
+    print(f"Selected primary model for deployment: {selected_name}")
+    print(
+        classification_report(
+            y_test,
+            selected_model.predict(X_test),
+            target_names=["Legit", "Fraud"],
+        )
+    )
 
-    # Isolation Forest for anomaly scoring
     iso = IsolationForest(contamination=0.01, random_state=42)
     iso.fit(X_train[FEATURES])
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    joblib.dump(best_model, MODEL_PATH)
+    joblib.dump(selected_model, MODEL_PATH)
     joblib.dump(iso, ISO_PATH)
-    joblib.dump({"merchant_category": le, "best_model_name": best_name}, ENCODER_PATH)
+    joblib.dump(
+        {
+            "merchant_category": le,
+            "best_model_name": best_name,
+            "selected_model_name": selected_name,
+        },
+        ENCODER_PATH,
+    )
 
-    print(f"\nModels saved → {DATA_DIR}")
-    return {"best_model": best_name, "metrics": results}
+    print(f"\nModels saved -> {DATA_DIR}")
+    return {
+        "best_model": best_name,
+        "selected_model": PRIMARY_MODEL_NAME,
+        "metrics": results,
+    }
 
 
 def _load_artifacts():
@@ -130,7 +156,6 @@ def score_transaction(tx: dict) -> dict:
 
     row = pd.DataFrame([tx])
 
-    # Handle unseen merchant categories gracefully
     known = list(le.classes_)
     if tx.get("merchant_category") not in known:
         row["merchant_category"] = known[0]
@@ -140,7 +165,6 @@ def score_transaction(tx: dict) -> dict:
 
     prob = float(model.predict_proba(X)[0][1])
     anomaly_raw = float(iso.score_samples(X)[0])
-    # Normalise anomaly: more negative = more anomalous → convert to 0-1
     anomaly_score = round(1 / (1 + np.exp(anomaly_raw * 5)), 4)
 
     if prob >= 0.70:
@@ -150,12 +174,14 @@ def score_transaction(tx: dict) -> dict:
     else:
         risk_level = "LOW"
 
-    # Top contributing features (for XGBoost / RF)
     top_factors = {}
     if hasattr(model, "feature_importances_"):
-        importances = {f: round(float(v), 4) for f, v in zip(FEATURES, model.feature_importances_)}
+        importances = {
+            f: round(float(v), 4)
+            for f, v in zip(FEATURES, model.feature_importances_)
+        }
         top_factors = dict(
-            sorted(importances.items(), key=lambda x: x[1], reverse=True)[:5]
+            sorted(importances.items(), key=lambda item: item[1], reverse=True)[:5]
         )
 
     return {

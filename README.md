@@ -47,7 +47,7 @@ FraudGuard AI addresses these limitations by combining:
 │              ▼                 ▼           ▼                │
 │         ┌─────────┐     ┌──────────┐  ┌──────────┐        │
 │         │  Groq   │     │ XGBoost  │  │  FAISS   │        │
-│         │LLM API  │     │+ IsoForst│  │ VectorDB │        │
+│         │LLM API  │     │+ Isolation Forest│  │ VectorDB │        │
 │         │qwen3-32b│     │ ML Model │  │  (RAG)   │        │
 │         └─────────┘     └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────┘
@@ -83,6 +83,16 @@ flowchart TD
 **Routing Logic:**
 - **HIGH / MEDIUM risk** → Full investigation path (6 nodes)
 - **LOW risk** → Fast path skipping account investigation (4 nodes)
+
+### 3.2.1 LangGraph Node Responsibilities
+Each LangGraph node is a focused investigation step. This node-level separation makes the end-to-end flow transparent, auditable, and easier to extend.
+
+- `transaction_loader` — fetches the full transaction record via MCP. Importance: provides the factual foundation for all downstream scoring and reasoning.
+- `fraud_scorer` — scores the transaction with XGBoost + Isolation Forest and evaluates merchant risk. Importance: estimates risk and chooses the appropriate investigation path.
+- `account_investigator` — retrieves account history and velocity behavior. Importance: surfaces repeating fraud patterns and abnormal account activity that a single transaction score cannot capture.
+- `pattern_analyzer` — retrieves relevant fraud patterns, compliance rules, and investigation playbook guidance with RAG. Importance: grounds the LLM decision in explicit domain evidence and reduces hallucination risk.
+- `decision_maker` — synthesizes transaction facts, model scores, account investigation, and policy context into BLOCK / FLAG / APPROVE. Importance: produces the final, explainable recommendation.
+- `alert_writer` — formats the structured fraud alert report for the operations team. Importance: translates the agent decision into a concise human-ready summary with next-step actions.
 
 ### 3.3 LangGraph State Schema
 
@@ -330,7 +340,7 @@ Hard-coding fraud rules directly in prompts creates maintenance overhead. The FA
 | Precision | ~0.88 | ~0.84 |
 | Recall | ~0.86 | ~0.80 |
 
-*XGBoost selected as best model by F1-score.*
+*XGBoost was selected as the best model by F1-score on the held-out test split.*
 
 ### 8.2 Agent Decision Coverage
 
@@ -344,7 +354,7 @@ Hard-coding fraud rules directly in prompts creates maintenance overhead. The FA
 | Stage | Time |
 |---|---|
 | MCP tool calls (3-5 tools) | < 50ms |
-| ML scoring (XGBoost + IsoForest) | < 100ms |
+| ML scoring (XGBoost + Isolation Forest) | < 100ms |
 | FAISS RAG retrieval | < 200ms |
 | LLM calls (2x Groq qwen3-32b) | 2-5 seconds |
 | **Total end-to-end** | **~3-6 seconds** |
@@ -385,30 +395,74 @@ capstone-final/
 
 ## 10. How to Run
 
+There are two simple ways to run the prototype depending on whether you prefer
+to operate from the repository root or by changing into the `capstone-final`
+folder.
+
+Option A — run from repository root (recommended):
+
 ```bash
-# 1. Clone and setup environment
+# Create a virtual environment
 python -m venv .venv
-.venv\Scripts\activate      # Windows
-pip install -r requirements.txt
 
-# 2. Configure API key
-cp .env.example .env
-# Add GROQ_API_KEY to .env
+# Activate (Windows Command Prompt)
+.venv\Scripts\activate
 
-# 3. Generate/prepare transaction data
-python src/prepare_kaggle_data.py   # if using Kaggle dataset
+# Activate (PowerShell)
+.venv\Scripts\Activate.ps1
+
+# Activate (macOS / Linux)
+source .venv/bin/activate
+
+# Install dependencies (from repo root)
+pip install -r capstone-final/requirements.txt
+
+# Copy and edit .env (add GROQ API key)
+copy capstone-final\.env.example capstone-final\.env  # Windows
+cp capstone-final/.env.example capstone-final/.env      # macOS / Linux
+# Edit capstone-final/.env and set GROQ_API_KEY
+
+# Prepare data (choose one)
+python capstone-final/src/prepare_kaggle_data.py   # if using Kaggle dataset
 # OR
-python src/generate_data.py         # generate synthetic data
+python capstone-final/src/generate_data.py         # generate synthetic demo data
 
-# 4. Train ML models
+# Train ML models (this will save the selected best model to data/)
+python capstone-final/src/ml_engine.py
+
+# Build RAG vector store
+python capstone-final/src/rag_engine.py
+
+# Launch dashboard (from repo root)
+streamlit run capstone-final/app.py
+```
+
+Option B — run from inside the `capstone-final` folder:
+
+```bash
+cd capstone-final
+python -m venv .venv
+.
+# Activate as above depending on OS
+pip install -r requirements.txt
+copy .env.example .env  # or cp .env.example .env
+# prepare data, train models, build RAG
+python src/generate_data.py
 python src/ml_engine.py
-
-# 5. Build RAG vector store
 python src/rag_engine.py
-
-# 6. Launch dashboard
 streamlit run app.py
 ```
+
+Notes:
+- If you set `GROQ_API_KEY` in `.env` the example scripts will load it automatically.
+- If you prefer not to create a `.env` file, set the environment variable directly:
+    - Windows (CMD): `set GROQ_API_KEY=your_key_here`
+    - PowerShell: ` $env:GROQ_API_KEY = 'your_key_here'`
+    - macOS/Linux: `export GROQ_API_KEY=your_key_here`
+
+If anything fails during startup (missing files, model artifacts, or vectorstore),
+follow the error messages or run the individual steps above to generate missing
+artifacts.
 
 ---
 

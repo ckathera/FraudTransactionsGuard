@@ -299,7 +299,8 @@ Generates a standardized fraud alert report in Markdown with:
 | **Agent Orchestration** | LangGraph | latest | StateGraph multi-node pipeline |
 | **LLM** | Qwen3-32B (Groq) | qwen/qwen3-32b | Decision making + report writing |
 | **LLM Client** | LangChain-Groq | latest | Groq API integration |
-| **ML Classifier** | XGBoost | latest | Primary fraud classifier |
+| **ML Classifier** | XGBoost | latest | Primary fraud classifier (benchmarked winner) |
+| **ML Classifier** | RandomForest | scikit-learn | Baseline classifier for benchmarking |
 | **Anomaly Detection** | Isolation Forest | scikit-learn | Unsupervised anomaly scoring |
 | **Imbalance Handling** | SMOTE | imbalanced-learn | Synthetic minority oversampling |
 | **Embeddings** | all-MiniLM-L6-v2 | sentence-transformers | Local RAG embeddings |

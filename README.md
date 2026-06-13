@@ -57,16 +57,16 @@ FraudGuard AI addresses these limitations by combining:
 
 ```mermaid
 flowchart TD
-    A([START]) --> B[transaction_loader\n📦 Fetch tx via MCP]
-    B --> C[fraud_scorer\n🧠 XGBoost / Random Forest + IsolationForest]
-    C --> D{route_by_risk\n⚡ Conditional Edge}
+    A([START]) --> B["transaction_loader<br/>Fetch transaction via MCP"]
+    B --> C["fraud_scorer<br/>XGBoost or Random Forest + Isolation Forest"]
+    C --> D{"route_by_risk<br/>Conditional edge"}
 
-    D -- HIGH / MEDIUM --> E[account_investigator\n🔍 History + Velocity]
-    D -- LOW --> G[decision_maker\n⚖️ LLM: BLOCK/FLAG/APPROVE]
+    D -- "HIGH / MEDIUM" --> E["account_investigator<br/>History + velocity"]
+    D -- "LOW" --> G["decision_maker<br/>LLM: BLOCK / FLAG / APPROVE"]
 
-    E --> F[pattern_analyzer\n📚 RAG: Fraud Policies]
+    E --> F["pattern_analyzer<br/>RAG: fraud policies"]
     F --> G
-    G --> H[alert_writer\n📋 LLM: Structured Report]
+    G --> H["alert_writer<br/>LLM: structured report"]
     H --> I([END])
 
     style A fill:#4CAF50,color:#fff

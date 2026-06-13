@@ -3,13 +3,13 @@
 **Course:** Agentic AI Engineering
 **Project:** Bank Transaction Fraud Detection System
 **Submitted:** March 2026
-**Tech Stack:** LangGraph · XGBoost · FAISS RAG · FastMCP · Groq · Streamlit
+**Tech Stack:** LangGraph · XGBoost · Random Forest · Isolation Forest · FAISS RAG · FastMCP · Groq · Streamlit
 
 ---
 
 ## 1. Executive Summary
 
-**FraudGuard AI** is a production-grade, multi-node agentic AI system for real-time bank transaction fraud detection. The system orchestrates six specialized AI nodes using LangGraph's StateGraph, combining machine learning (XGBoost + Isolation Forest), Retrieval-Augmented Generation (RAG) over fraud policy documents, and a large language model (Qwen3-32B via Groq) to make final BLOCK / FLAG / APPROVE decisions on financial transactions.
+**FraudGuard AI** is a production-grade, multi-node agentic AI system for real-time bank transaction fraud detection. The system orchestrates six specialized AI nodes using LangGraph's StateGraph, combining machine learning (XGBoost benchmarked against Random Forest + Isolation Forest), Retrieval-Augmented Generation (RAG) over fraud policy documents, and a large language model (Qwen3-32B via Groq) to make final BLOCK / FLAG / APPROVE decisions on financial transactions.
 
 The system processes a transaction end-to-end in seconds: fetching raw data through MCP tools, scoring with ML models, investigating account history, retrieving relevant fraud patterns from a vector database, and generating a structured fraud alert report.
 
@@ -46,9 +46,9 @@ FraudGuard AI addresses these limitations by combining:
 │              ┌────────┴────────┐           │                │
 │              ▼                 ▼           ▼                │
 │         ┌─────────┐     ┌──────────┐  ┌──────────┐        │
-│         │  Groq   │     │ XGBoost  │  │  FAISS   │        │
+│         │  Groq   │     │ XGB/RF   │  │  FAISS   │        │
 │         │LLM API  │     │+ Isolation Forest│  │ VectorDB │        │
-│         │qwen3-32b│     │ ML Model │  │  (RAG)   │        │
+│         │qwen3-32b│     │ ML Models│  │  (RAG)   │        │
 │         └─────────┘     └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -58,7 +58,7 @@ FraudGuard AI addresses these limitations by combining:
 ```mermaid
 flowchart TD
     A([START]) --> B[transaction_loader\n📦 Fetch tx via MCP]
-    B --> C[fraud_scorer\n🧠 XGBoost + IsolationForest]
+    B --> C[fraud_scorer\n🧠 XGBoost / Random Forest + IsolationForest]
     C --> D{route_by_risk\n⚡ Conditional Edge}
 
     D -- HIGH / MEDIUM --> E[account_investigator\n🔍 History + Velocity]
@@ -88,7 +88,7 @@ flowchart TD
 Each LangGraph node is a focused investigation step. This node-level separation makes the end-to-end flow transparent, auditable, and easier to extend.
 
 - `transaction_loader` — fetches the full transaction record via MCP. Importance: provides the factual foundation for all downstream scoring and reasoning.
-- `fraud_scorer` — scores the transaction with XGBoost + Isolation Forest and evaluates merchant risk. Importance: estimates risk and chooses the appropriate investigation path.
+- `fraud_scorer` — scores the transaction with the deployed supervised model, selected after benchmarking XGBoost against Random Forest, plus Isolation Forest anomaly scoring; it also evaluates merchant risk. Importance: estimates risk and chooses the appropriate investigation path.
 - `account_investigator` — retrieves account history and velocity behavior. Importance: surfaces repeating fraud patterns and abnormal account activity that a single transaction score cannot capture.
 - `pattern_analyzer` — retrieves relevant fraud patterns, compliance rules, and investigation playbook guidance with RAG. Importance: grounds the LLM decision in explicit domain evidence and reduces hallucination risk.
 - `decision_maker` — synthesizes transaction facts, model scores, account investigation, and policy context into BLOCK / FLAG / APPROVE. Importance: produces the final, explainable recommendation.
@@ -123,14 +123,14 @@ class FraudAgentState(TypedDict):
 **Models Used:**
 | Model | Role | Technique |
 |---|---|---|
-| **XGBoost** | Primary classifier | Gradient boosting, `scale_pos_weight` for class imbalance |
-| **Random Forest** | Baseline comparison | Ensemble, `class_weight="balanced"` |
+| **XGBoost** | Supervised classifier candidate | Gradient boosting, `scale_pos_weight` for class imbalance |
+| **Random Forest** | Supervised classifier candidate | Ensemble, `class_weight="balanced"` |
 | **Isolation Forest** | Anomaly detection | Unsupervised, `contamination=0.01` |
 
 **Class Imbalance Handling:**
 - SMOTE (Synthetic Minority Over-sampling Technique) applied on training set
 - XGBoost `scale_pos_weight = neg_count / pos_count` ratio
-- Best model selected by F1-score on held-out test set
+- Between XGBoost and Random Forest, whichever model has the stronger F1-score on the held-out test set is selected as the deployed supervised model
 
 **Features (10 total):**
 ```
@@ -299,8 +299,8 @@ Generates a standardized fraud alert report in Markdown with:
 | **Agent Orchestration** | LangGraph | latest | StateGraph multi-node pipeline |
 | **LLM** | Qwen3-32B (Groq) | qwen/qwen3-32b | Decision making + report writing |
 | **LLM Client** | LangChain-Groq | latest | Groq API integration |
-| **ML Classifier** | XGBoost | latest | Primary fraud classifier (benchmarked winner) |
-| **ML Classifier** | RandomForest | scikit-learn | Baseline classifier for benchmarking |
+| **ML Classifier** | XGBoost | latest | Supervised fraud classifier candidate |
+| **ML Classifier** | RandomForest | scikit-learn | Supervised fraud classifier candidate |
 | **Anomaly Detection** | Isolation Forest | scikit-learn | Unsupervised anomaly scoring |
 | **Imbalance Handling** | SMOTE | imbalanced-learn | Synthetic minority oversampling |
 | **Embeddings** | all-MiniLM-L6-v2 | sentence-transformers | Local RAG embeddings |
@@ -323,8 +323,9 @@ MCP decouples the agent from data sources. The 5 MCP tools (`get_transaction_det
 ### 7.3 Why RAG for Policy Documents?
 Hard-coding fraud rules directly in prompts creates maintenance overhead. The FAISS vector store allows fraud analysts to update `.txt` policy documents without touching agent code. The RAG query is dynamically constructed from the transaction's actual risk profile, ensuring contextually relevant policy chunks are retrieved every time.
 
-### 7.4 Why XGBoost + Isolation Forest (Hybrid)?
-- **XGBoost** provides high-accuracy supervised classification (trained on labeled fraud data)
+### 7.4 Why XGBoost / Random Forest + Isolation Forest (Hybrid)?
+- **XGBoost and Random Forest** provide supervised fraud classification options trained on labeled fraud data
+- **Benchmark selection** chooses whichever supervised model performs better by F1-score for deployment
 - **Isolation Forest** provides unsupervised anomaly detection that catches novel fraud patterns not in training data
 - Together they cover both known fraud patterns and unknown anomalies
 
@@ -341,7 +342,7 @@ Hard-coding fraud rules directly in prompts creates maintenance overhead. The FA
 | Precision | ~0.88 | ~0.84 |
 | Recall | ~0.86 | ~0.80 |
 
-*XGBoost was selected as the best model by F1-score on the held-out test split.*
+*The deployed supervised model is selected by comparing XGBoost and Random Forest on the held-out test split and choosing the stronger F1-score.*
 
 ### 8.2 Agent Decision Coverage
 
@@ -355,7 +356,7 @@ Hard-coding fraud rules directly in prompts creates maintenance overhead. The FA
 | Stage | Time |
 |---|---|
 | MCP tool calls (3-5 tools) | < 50ms |
-| ML scoring (XGBoost + Isolation Forest) | < 100ms |
+| ML scoring (deployed supervised model + Isolation Forest) | < 100ms |
 | FAISS RAG retrieval | < 200ms |
 | LLM calls (2x Groq qwen3-32b) | 2-5 seconds |
 | **Total end-to-end** | **~3-6 seconds** |
@@ -373,14 +374,14 @@ capstone-final/
 ├── src/
 │   ├── agent.py                    # LangGraph agent (6 nodes + routing)
 │   ├── mcp_server.py               # FastMCP tool server (5 tools)
-│   ├── ml_engine.py                # XGBoost + Isolation Forest training & scoring
+│   ├── ml_engine.py                # XGBoost/Random Forest benchmarking + Isolation Forest scoring
 │   ├── rag_engine.py               # FAISS vector store + retrieval
 │   ├── generate_data.py            # Synthetic transaction data generator
 │   └── prepare_kaggle_data.py      # Kaggle dataset preprocessor
 │
 └── data/
     ├── transactions.csv            # Transaction dataset (~2k records)
-    ├── fraud_model.joblib          # Trained XGBoost model
+    ├── fraud_model.joblib          # Selected trained supervised model
     ├── isolation_forest.joblib     # Trained IsolationForest model
     ├── encoders.joblib             # LabelEncoders for categories
     ├── vectorstore/
@@ -469,7 +470,7 @@ artifacts.
 
 ## 11. Conclusion
 
-FraudGuard AI demonstrates a complete agentic AI architecture for real-world financial fraud detection. The system integrates five distinct AI/ML capabilities — supervised classification (XGBoost), unsupervised anomaly detection (Isolation Forest), retrieval-augmented generation (FAISS RAG), large language model reasoning (Qwen3-32B), and structured tool use (FastMCP) — all orchestrated by LangGraph's conditional state machine.
+FraudGuard AI demonstrates a complete agentic AI architecture for real-world financial fraud detection. The system integrates five distinct AI/ML capabilities — supervised classification (XGBoost benchmarked against Random Forest), unsupervised anomaly detection (Isolation Forest), retrieval-augmented generation (FAISS RAG), large language model reasoning (Qwen3-32B), and structured tool use (FastMCP) — all orchestrated by LangGraph's conditional state machine.
 
 The result is a system that is:
 - **Explainable** — LLM provides natural-language rationale for every decision
@@ -523,4 +524,4 @@ This project showcases the practical application of agentic AI design patterns i
 
 ---
 
-*FraudGuard AI · Built with LangGraph · XGBoost · FAISS · FastMCP · Groq*
+*FraudGuard AI · Built with LangGraph · XGBoost · Random Forest · Isolation Forest · FAISS · FastMCP · Groq*

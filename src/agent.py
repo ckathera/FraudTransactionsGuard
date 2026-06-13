@@ -75,7 +75,7 @@ def transaction_loader(state: FraudAgentState) -> dict:
 
 # ── Node 2: Fraud Scorer ───────────────────────────────────────────────────────
 def fraud_scorer(state: FraudAgentState) -> dict:
-    """Run XGBoost + Isolation Forest scoring via MCP tool.
+    """Run supervised fraud scoring plus Isolation Forest via MCP tool.
 
     Importance: estimates transaction risk and sets the investigation path
     (HIGH/MEDIUM risk receives a deeper investigation; LOW risk may take a fast path).

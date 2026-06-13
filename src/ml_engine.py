@@ -1,6 +1,6 @@
 """
 ML Engine - Bank Transaction Fraud Detection
-Models: XGBoost (primary) vs RandomForest (baseline comparison)
+Models: XGBoost vs Random Forest supervised benchmark + Isolation Forest anomaly scoring
 Handles class imbalance via SMOTE + scale_pos_weight
 """
 import joblib
@@ -38,7 +38,7 @@ NUMERIC = [
 ]
 FEATURES = NUMERIC + ["merchant_category_encoded"]
 TARGET = "fraud"
-PRIMARY_MODEL_NAME = "XGBoost"
+DEFAULT_MODEL_NAME = "XGBoost"
 
 
 def _encode(df: pd.DataFrame, le: LabelEncoder | None = None):
@@ -53,7 +53,7 @@ def _encode(df: pd.DataFrame, le: LabelEncoder | None = None):
 
 
 def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
-    """Train benchmark models, report metrics, and save XGBoost as the primary model."""
+    """Train supervised benchmark models, report metrics, and save the winner."""
     df_train = pd.read_csv(train_path)
     df_test = pd.read_csv(test_path)
 
@@ -103,11 +103,11 @@ def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
         if f1 > best_f1:
             best_f1, best_name = f1, name
 
-    # Choose the actual best model found by benchmarking (fall back to PRIMARY_MODEL_NAME)
-    selected_name = best_name if best_name else PRIMARY_MODEL_NAME
+    # Choose the actual best model found by benchmarking (fall back to DEFAULT_MODEL_NAME)
+    selected_name = best_name if best_name else DEFAULT_MODEL_NAME
     selected_model = trained_models[selected_name]
     print(f"\nBenchmark winner: {best_name}  (F1={best_f1:.4f})")
-    print(f"Selected primary model for deployment: {selected_name}")
+    print(f"Selected supervised model for deployment: {selected_name}")
     print(
         classification_report(
             y_test,
@@ -134,7 +134,7 @@ def train(train_path: str = TRAIN_PATH, test_path: str = TEST_PATH) -> dict:
     print(f"\nModels saved -> {DATA_DIR}")
     return {
         "best_model": best_name,
-        "selected_model": PRIMARY_MODEL_NAME,
+        "selected_model": selected_name,
         "metrics": results,
     }
 

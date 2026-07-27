@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-**FraudGuard AI** is a production-grade, multi-node agentic AI system for real-time bank transaction fraud detection. The system orchestrates six specialized AI nodes using LangGraph's StateGraph, combining machine learning (XGBoost benchmarked against Random Forest + Isolation Forest), Retrieval-Augmented Generation (RAG) over fraud policy documents, and a large language model (Qwen3-32B via Groq) to make final BLOCK / FLAG / APPROVE decisions on financial transactions.
+**FraudGuard AI** is a production-grade, multi-node agentic AI system for real-time bank transaction fraud detection. The system orchestrates six specialized AI nodes using LangGraph's StateGraph, combining machine learning (XGBoost benchmarked against Random Forest + Isolation Forest), Retrieval-Augmented Generation (RAG) over fraud policy documents, and a large language model (GPT-OSS 120B via Groq) to make final BLOCK / FLAG / APPROVE decisions on financial transactions.
 
 The system processes a transaction end-to-end in seconds: fetching raw data through MCP tools, scoring with ML models, investigating account history, retrieving relevant fraud patterns from a vector database, and generating a structured fraud alert report.
 
@@ -48,7 +48,7 @@ FraudGuard AI addresses these limitations by combining:
 │         ┌─────────┐     ┌──────────┐  ┌──────────┐        │
 │         │  Groq   │     │ XGB/RF   │  │  FAISS   │        │
 │         │LLM API  │     │+ Isolation Forest│  │ VectorDB │        │
-│         │qwen3-32b│     │ ML Models│  │  (RAG)   │        │
+│         │gpt-oss-120b│   │ ML Models│  │  (RAG)   │        │
 │         └─────────┘     └──────────┘  └──────────┘        │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -225,7 +225,7 @@ LOW:    restaurant, grocery, pharmacy
 **Purpose:** Orchestrate the 6-node investigation pipeline with conditional routing.
 
 **LLM Configuration:**
-- **Model:** `qwen/qwen3-32b` via Groq API
+- **Model:** `openai/gpt-oss-120b` via Groq API
 - **Usage:** Two LLM calls per investigation (decision_maker + alert_writer)
 - **Prompt Style:** Role-based ("You are a senior bank fraud analyst...")
 
@@ -297,7 +297,7 @@ Generates a standardized fraud alert report in Markdown with:
 | Layer | Technology | Version | Purpose |
 |---|---|---|---|
 | **Agent Orchestration** | LangGraph | latest | StateGraph multi-node pipeline |
-| **LLM** | Qwen3-32B (Groq) | qwen/qwen3-32b | Decision making + report writing |
+| **LLM** | GPT-OSS 120B (Groq) | openai/gpt-oss-120b | Decision making + report writing |
 | **LLM Client** | LangChain-Groq | latest | Groq API integration |
 | **ML Classifier** | XGBoost | latest | Supervised fraud classifier candidate |
 | **ML Classifier** | RandomForest | scikit-learn | Supervised fraud classifier candidate |
@@ -358,7 +358,7 @@ Hard-coding fraud rules directly in prompts creates maintenance overhead. The FA
 | MCP tool calls (3-5 tools) | < 50ms |
 | ML scoring (deployed supervised model + Isolation Forest) | < 100ms |
 | FAISS RAG retrieval | < 200ms |
-| LLM calls (2x Groq qwen3-32b) | 2-5 seconds |
+| LLM calls (2x Groq GPT-OSS 120B) | 2-5 seconds |
 | **Total end-to-end** | **~3-6 seconds** |
 
 ---
@@ -470,7 +470,7 @@ artifacts.
 
 ## 11. Conclusion
 
-FraudGuard AI demonstrates a complete agentic AI architecture for real-world financial fraud detection. The system integrates five distinct AI/ML capabilities — supervised classification (XGBoost benchmarked against Random Forest), unsupervised anomaly detection (Isolation Forest), retrieval-augmented generation (FAISS RAG), large language model reasoning (Qwen3-32B), and structured tool use (FastMCP) — all orchestrated by LangGraph's conditional state machine.
+FraudGuard AI demonstrates a complete agentic AI architecture for real-world financial fraud detection. The system integrates five distinct AI/ML capabilities — supervised classification (XGBoost benchmarked against Random Forest), unsupervised anomaly detection (Isolation Forest), retrieval-augmented generation (FAISS RAG), large language model reasoning (GPT-OSS 120B), and structured tool use (FastMCP) — all orchestrated by LangGraph's conditional state machine.
 
 The result is a system that is:
 - **Explainable** — LLM provides natural-language rationale for every decision

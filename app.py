@@ -14,6 +14,7 @@ import streamlit as st
 import joblib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -87,7 +88,7 @@ with st.sidebar:
     """)
     st.divider()
     st.markdown("### Tech Stack")
-    st.markdown("🤖 `qwen3-32b` via Groq")
+    st.markdown(f"🤖 `{GROQ_MODEL}` via Groq")
     # Show which model was selected at training time (if available)
     try:
         encoders_path = os.path.join(os.path.dirname(__file__), "data", "encoders.joblib")

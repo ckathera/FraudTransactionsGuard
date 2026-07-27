@@ -39,7 +39,9 @@ from rag_engine import retrieve
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
-llm = ChatGroq(model="qwen/qwen3-32b")
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+GROQ_MODEL = os.getenv("GROQ_MODEL", DEFAULT_GROQ_MODEL)
+llm = ChatGroq(model=GROQ_MODEL)
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
